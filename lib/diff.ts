@@ -13,8 +13,8 @@ const FIELDS: { key: keyof EventRecord; label: string; fmt?: (v: unknown) => str
   { key: 'hotel', label: 'Hotel', fmt: (v) => hotelLabel(String(v)) },
   { key: 'categories', label: 'Category', fmt: (v) => (v as string[]).map(catLabel).join(', ') },
   { key: 'description', label: 'Description' },
-  { key: 'url', label: '“Learn More” link' },
-  { key: 'titleUrl', label: 'Title link' },
+  { key: 'url', label: '“Learn More” link', fmt: (v) => String(v ?? '').replace(/\/+$/, '') },
+  { key: 'titleUrl', label: 'Title link', fmt: (v) => String(v ?? '').replace(/\/+$/, '') },
 ];
 
 const show = (v: string) => (v ? `“${v.length > 140 ? v.slice(0, 140) + '…' : v}”` : '(empty)');

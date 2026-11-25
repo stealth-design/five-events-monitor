@@ -448,7 +448,7 @@ export default function Dashboard({ initial }: { initial: DashboardState }) {
           <div className={`kpi ${brokenLinks.length ? 'kpi-bad' : state.latest ? 'kpi-good' : ''}`}>
             <div className="kpi-label">Broken links</div>
             <div className="kpi-value">{state.latest ? brokenLinks.length : '—'}</div>
-            <div className="kpi-sub">{state.latest ? `${Object.keys(links).length} checked${blockedLinks.length ? ` · ${blockedLinks.length} unverified` : ''}` : '—'}</div>
+            <div className="kpi-sub">{state.latest ? `${Object.keys(links).length} links checked across ${events.length} events${blockedLinks.length ? ` · ${blockedLinks.length} unverified` : ''}` : '—'}</div>
           </div>
           <div className="kpi">
             <div className="kpi-label">Last audit changes</div>

@@ -49,8 +49,10 @@ export function parseHomepage(html: string): Card[] {
       const day = /class="day">([\s\S]*?)</.exec(card)?.[1];
       const num = /class="num">([\s\S]*?)</.exec(card)?.[1];
       const learnMore = /href="([^"]+)"[^>]*>\s*Learn More/.exec(card)?.[1] ?? '';
-      const titleUrl = decode(t[1]);
       const url = decode(learnMore || t[1]);
+      let titleUrl = decode(t[1]);
+      // Same page linked with and without a trailing slash (e.g. BLING) — count it once.
+      if (titleUrl.replace(/\/+$/, '') === url.replace(/\/+$/, '')) titleUrl = url;
       cards.push({
         key: slugOf(url),
         category: m[1],

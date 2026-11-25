@@ -18,8 +18,13 @@ export class AuditBusyError extends Error {
 function urlsFor(events: Iterable<EventRecord>): string[] {
   const out: string[] = [];
   for (const e of events) {
-    out.push(e.url, e.titleUrl);
-    if (e.pageUrl) out.push(e.pageUrl);
+    const seen = new Set(out.map((u) => u.replace(/\/+$/, '')));
+    for (const u of [e.url, e.titleUrl, e.pageUrl]) {
+      if (u && !seen.has(u.replace(/\/+$/, ''))) {
+        seen.add(u.replace(/\/+$/, ''));
+        out.push(u);
+      }
+    }
   }
   return out;
 }
