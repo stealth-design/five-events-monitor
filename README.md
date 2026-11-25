@@ -13,6 +13,10 @@ Dashboard that audits https://festive.fivehotelsandresorts.com and notifies you 
 
 **Baseline:** the first audit records the site as the *ideal* state. "Open issues" lists everything that still differs from it until it's fixed or you click **Accept as baseline**. Notifications fire only for *new* changes since the previous audit, so you're not re-alerted every run.
 
+**Ended events:** an event taken down *after* its date (read from the card's date badge, e.g. "THURS 24", "DEC 1-31", or "…to 30th December" in its description; over at 06:00 Dubai the next morning) is logged as *Ended*, dropped from the baseline automatically and never alerted on. Taken down *before* its date → still a critical alert.
+
+**Accepting changes:** each open issue has **✓ Accept** to make that event's current state part of the baseline (e.g. a planned new event). **Accept all** resets the whole baseline to the latest audit — use it to start a new festive season.
+
 Links answering 403/429 (the site's firewall) show as "couldn't verify" and never trigger alerts.
 
 ## Run locally

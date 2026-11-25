@@ -42,6 +42,7 @@ const TYPE_LABEL: Record<Change['type'], string> = {
   event_added: 'New event',
   event_removed: 'Removed',
   event_unpublished: 'Draft / deleted',
+  event_ended: 'Ended',
   event_hidden: 'Hidden',
   event_shown: 'Shown',
   field_changed: 'Edited',
@@ -63,7 +64,17 @@ function StatusFlag({ link }: { link?: LinkResult }) {
   return <span className="flag flag-bad">● Broken {link.code || ''}</span>;
 }
 
-function ChangeList({ changes, empty }: { changes: Change[]; empty: string }) {
+function ChangeList({
+  changes,
+  empty,
+  onAccept,
+  accepting,
+}: {
+  changes: Change[];
+  empty: string;
+  onAccept?: (c: Change) => void;
+  accepting?: string | null;
+}) {
   if (!changes.length) return <p className="empty">{empty}</p>;
   return (
     <ul className="changes">
@@ -79,6 +90,16 @@ function ChangeList({ changes, empty }: { changes: Change[]; empty: string }) {
               </a>
             )}
           </div>
+          {onAccept && c.eventKey && (
+            <button
+              className="btn btn-outline btn-sm accept-btn"
+              onClick={() => onAccept(c)}
+              disabled={accepting === c.eventKey}
+              title="This change is expected: make it part of the baseline"
+            >
+              {accepting === c.eventKey ? 'Accepting…' : '✓ Accept'}
+            </button>
+          )}
         </li>
       ))}
     </ul>
@@ -223,6 +244,7 @@ export default function Dashboard({ initial }: { initial: DashboardState }) {
   const [hotel, setHotel] = useState('all');
   const [query, setQuery] = useState('');
   const [issuesOnly, setIssuesOnly] = useState(false);
+  const [accepting, setAccepting] = useState<string | null>(null);
   const [, tick] = useState(0);
 
   const refresh = useCallback(async () => {
@@ -273,6 +295,26 @@ export default function Dashboard({ initial }: { initial: DashboardState }) {
       setToast({ kind: 'err', text: `Audit failed: ${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setAuditing(false);
+      refresh();
+    }
+  }
+
+  async function acceptOne(c: Change) {
+    if (!c.eventKey) return;
+    setAccepting(c.eventKey);
+    try {
+      const r = await fetch('/api/accept', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ eventKey: c.eventKey }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setToast({ kind: 'ok', text: `Accepted: ${c.title.replace(/^[^:]+:\s*/, '')}` });
+    } catch (e) {
+      setToast({ kind: 'err', text: `Couldn’t accept: ${e instanceof Error ? e.message : String(e)}` });
+    } finally {
+      setAccepting(null);
       refresh();
     }
   }
@@ -472,14 +514,14 @@ export default function Dashboard({ initial }: { initial: DashboardState }) {
               </div>
               {tab === 'issues' && state.deviations.length > 0 && (
                 <button className="btn btn-outline btn-sm" onClick={acceptBaseline} title="Treat the site as it is now as the ideal state">
-                  Accept as baseline
+                  Accept all
                 </button>
               )}
             </div>
             {tab === 'issues' ? (
               <>
-                <p className="panel-note">Everything that differs from the ideal baseline. Stays listed until it’s fixed or accepted.</p>
-                <ChangeList changes={state.deviations} empty={state.latest ? '✓ The site matches the baseline. Nothing to fix.' : 'Run the first audit to set the baseline.'} />
+                <p className="panel-note">Everything that differs from the ideal baseline. Accept a change if it’s expected; events taken down after their date drop off automatically.</p>
+                <ChangeList changes={state.deviations} onAccept={acceptOne} accepting={accepting} empty={state.latest ? '✓ The site matches the baseline. Nothing to fix.' : 'Run the first audit to set the baseline.'} />
               </>
             ) : (
               <>

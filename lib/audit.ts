@@ -1,4 +1,5 @@
 import { LOCK_TTL_SECONDS, RUN_HISTORY, SITE } from './config';
+import { hasEnded } from './dates';
 import { diffSnapshots } from './diff';
 import { checkLinks, isBad } from './links';
 import { notifierStatus, notify } from './notify';
@@ -55,11 +56,27 @@ export async function runAudit(trigger: RunRecord['trigger']): Promise<RunRecord
     const links = await checkLinks([...urlsFor(Object.values(events)), ...missing.map((e) => e.pageUrl ?? e.url)]);
     const snapshot: Snapshot = { takenAt: new Date().toISOString(), events, links };
 
+    const now = new Date();
     const isBaseline = !baseline;
     if (isBaseline) await setJSON('baseline', snapshot);
-    const changes = previous ? diffSnapshots(previous, snapshot) : [];
-    const deviations = diffSnapshots(baseline ?? snapshot, snapshot, { wpEdits: false });
+
+    // Events that came down after their date are expected: drop them from the baseline.
+    let autoAccepted = 0;
+    if (baseline) {
+      for (const [key, e] of Object.entries(baseline.events)) {
+        if (!events[key] && hasEnded(e, now)) {
+          delete baseline.events[key];
+          autoAccepted++;
+        }
+      }
+      if (autoAccepted) await setJSON('baseline', baseline);
+    }
+
+    const changes = previous ? diffSnapshots(previous, snapshot, { now }) : [];
+    const deviations = diffSnapshots(baseline ?? snapshot, snapshot, { wpEdits: false, now });
     await setJSON('latest', snapshot);
+    // "Ended" is expected housekeeping — shown on the dashboard, never alerted on.
+    const alertable = changes.filter((c) => c.type !== 'event_ended');
 
     const statuses = Object.values(links);
     const run: RunRecord = {
@@ -74,9 +91,10 @@ export async function runAudit(trigger: RunRecord['trigger']): Promise<RunRecord
       blockedLinks: statuses.filter((l) => l.status === 'blocked').length,
       changes,
       deviationCount: deviations.length,
+      autoAccepted,
       notified: [],
     };
-    if (changes.length) run.notified = await notify(run, changes);
+    if (alertable.length) run.notified = await notify(run, alertable);
     await pushRun(run);
     return run;
   } catch (err) {
@@ -103,6 +121,27 @@ export async function runAudit(trigger: RunRecord['trigger']): Promise<RunRecord
   } finally {
     await releaseLock(LOCK);
   }
+}
+
+/**
+ * Accepts the current state of one event into the baseline (its open issues clear):
+ * a new event becomes expected, a removed one is forgotten, edits/links are taken as-is.
+ */
+export async function acceptEvent(key: string): Promise<void> {
+  const [baseline, latest] = await Promise.all([getJSON<Snapshot>('baseline'), getJSON<Snapshot>('latest')]);
+  if (!baseline || !latest) throw new Error('Run an audit first.');
+  const before = baseline.events[key];
+  const now = latest.events[key];
+  if (!before && !now) throw new Error('Unknown event.');
+
+  if (now) baseline.events[key] = now;
+  else delete baseline.events[key];
+  for (const u of [before?.url, before?.titleUrl, before?.pageUrl, now?.url, now?.titleUrl, now?.pageUrl]) {
+    if (!u) continue;
+    if (latest.links[u]) baseline.links[u] = latest.links[u];
+    else delete baseline.links[u];
+  }
+  await setJSON('baseline', baseline);
 }
 
 /** Makes the most recent audit the new "ideal" reference. */

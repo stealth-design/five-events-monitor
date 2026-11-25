@@ -1,4 +1,5 @@
 import { catLabel, hotelLabel } from './config';
+import { eventEndsAt, fmtDay } from './dates';
 import { isBad } from './links';
 import type { Change, EventRecord, Snapshot } from './types';
 
@@ -25,7 +26,11 @@ const show = (v: string) => (v ? `“${v.length > 140 ? v.slice(0, 140) + '…' 
  * changed) — useful as a one-off alert between audits, but not an open issue:
  * e.g. drafting then re-publishing an event bumps the timestamp forever.
  */
-export function diffSnapshots(from: Snapshot, to: Snapshot, { wpEdits = true } = {}): Change[] {
+export function diffSnapshots(
+  from: Snapshot,
+  to: Snapshot,
+  { wpEdits = true, now = new Date() }: { wpEdits?: boolean; now?: Date } = {},
+): Change[] {
   const changes: Change[] = [];
   const removedUrls = new Set<string>();
 
@@ -105,6 +110,18 @@ export function diffSnapshots(from: Snapshot, to: Snapshot, { wpEdits = true } =
     for (const u of [prev.url, prev.titleUrl, page]) removedUrls.add(u);
     const status = to.links[page];
     const gone = status?.status === 'broken';
+    const endsAt = eventEndsAt(prev, now);
+    if (endsAt && endsAt.getTime() < now.getTime()) {
+      changes.push({
+        type: 'event_ended',
+        severity: 'info',
+        eventKey: key,
+        title: `Ended: ${eventName(prev)}`,
+        detail: `Taken down after its date (${fmtDay(endsAt)}), as expected. Removed from the baseline automatically.`,
+        url: page,
+      });
+      continue;
+    }
     changes.push({
       type: gone ? 'event_unpublished' : 'event_removed',
       severity: 'critical',

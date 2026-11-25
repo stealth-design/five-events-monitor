@@ -41,6 +41,7 @@ export type ChangeType =
   | 'event_added'
   | 'event_removed'
   | 'event_unpublished'
+  | 'event_ended'
   | 'event_hidden'
   | 'event_shown'
   | 'field_changed'
@@ -76,6 +77,8 @@ export interface RunRecord {
   /** Changes since the previous audit (these trigger notifications) */
   changes: Change[];
   deviationCount: number;
+  /** Ended events dropped from the baseline automatically in this run */
+  autoAccepted?: number;
   notified: string[];
 }
 
